@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GuruMix DSP - Professional Mixing & Mastering Suite</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        studio: {
+                            900: '#0a0d12',
+                            800: '#12161f',
+                            700: '#1a202c',
+                            600: '#2d3748',
+                        },
+                        gold: {
+                            400: '#f6ad55',
+                            500: '#ed8936',
+                            600: '#dd6b20',
+                        },
+                        cyan: {
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0a0d12;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2d3748;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #0ea5e9;
+        }
+
+        /* Custom Range Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #1a202c;
+            border-radius: 3px;
+            border: 1px solid #2d3748;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 16px;
+            width: 12px;
+            border-radius: 2px;
+            background: #0ea5e9;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -6px;
+            box-shadow: 0 0 8px rgba(14, 165, 233, 0.5);
+        }
+        input[type=range].gold-thumb::-webkit-slider-thumb {
+            background: #ed8936;
+            box-shadow: 0 0 8px rgba(237, 137, 54, 0.5);
+        }
+
+        /* LED Meter Styling */
+        .meter-bar {
+            transition: height 0.05s ease-out;
+        }
+    </style>
+</head>
+<body class="bg-studio-900 text-gray-100 min-h-screen font-sans flex flex-col antialiased selection:bg-cyan-500 selection:text-black">
+
+    <!-- Header Section -->
+    <header class="border-b border-studio-700 bg-studio-800/80 backdrop-blur sticky top-0 z-50 px-6 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="p-2 bg-gradient-to-tr from-cyan-600 to-gold-500 rounded-lg shadow-lg shadow-cyan-500/20">
+                <i data-lucide="sliders" class="w-6 h-6 text-black"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-white to-gold-400">GURUMIX DSP</h1>
+                <p class="text-xs text-gray-400 font-mono">YOUNG GURU SIGNATURE HYBRID DSP WORKSTATION</p>
+            </div>
+        </div>
+
+        <!-- Global Master Output Controls -->
+        <div class="flex items-center gap-4">
+            <button id="playBtn" disabled class="px-5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-black transition flex items-center gap-2 shadow-lg shadow-cyan-600/30">
+                <i data-lucide="play" class="w-4 h-4 fill-current"></i> Preview Mix
+            </button>
+            <button id="stopBtn" disabled class="px-4 py-2 rounded-lg bg-studio-700 hover:bg-studio-600 disabled:opacity-40 text-gray-300 transition flex items-center gap-2">
+                <i data-lucide="square" class="w-4 h-4 fill-current"></i> Stop
+            </button>
+            <button id="exportBtn" disabled class="px-5 py-2 rounded-lg bg-gold-500 hover:bg-gold-400 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-black transition flex items-center gap-2 shadow-lg shadow-gold-500/30">
+                <i data-lucide="download" class="w-4 h-4"></i> Export WAV
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 overflow-hidden max-w-[1920px] mx-auto w-full">
+        
+        <!-- Left Panel: Stem Ingestion & Multi-Track Mixer (8 Cols) -->
+        <section class="lg:col-span-7 flex flex-col gap-4 min-h-[500px]">
+            <!-- File Upload Box -->
+            <div id="dropZone" class="border-2 border-dashed border-studio-600 hover:border-cyan-500 bg-studio-800/40 rounded-xl p-6 text-center cursor-pointer transition relative overflow-hidden group">
+                <input type="file" id="fileInput" multiple accept="audio/*" class="absolute inset-0 opacity-0 cursor-pointer z-10">
+                <div class="flex flex-col items-center justify-center gap-2">
+                    <div class="p-3 bg-studio-700 rounded-full group-hover:scale-110 transition text-cyan-400">
+                        <i data-lucide="upload-cloud" class="w-8 h-8"></i>
+                    </div>
+                    <div>
+                        <p class="font-medium text-gray-200">Drag & Drop Audio Stems Here or <span class="text-cyan-400 underline">Browse</span></p>
+                        <p class="text-xs text-gray-400 mt-1">Supports up to 100 Stems (.wav, .mp3, .ogg, .flac). Maximum stem limit strictly enforced.</p>
+                    </div>
+                    <div id="stemCountBadge" class="mt-2 text-xs font-mono bg-studio-700 text-cyan-400 px-3 py-1 rounded-full border border-studio-600">
+                        Stems Loaded: 0 / 100
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stem List Header -->
+            <div class="flex items-center justify-between px-2 text-xs font-mono text-gray-400 uppercase tracking-wider">
+                <span>Loaded Stems (<span id="totalStemDisplay">0</span>)</span>
+                <button id="clearStemsBtn" class="text-red-400 hover:text-red-300 text-xs flex items-center gap-1 transition">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear All
+                </button>
+            </div>
+
+            <!-- Scrollable Stem Channel List -->
+            <div id="stemListContainer" class="flex-1 overflow-y-auto space-y-2 pr-2 max-h-[550px]">
+                <!-- Empty State Placeholder -->
+                <div id="emptyState" class="h-64 border border-studio-700/60 rounded-xl flex flex-col items-center justify-center text-gray-500 bg-studio-800/20">
+                    <i data-lucide="layers" class="w-12 h-12 mb-2 stroke-[1.5]"></i>
+                    <p class="text-sm">No audio stems loaded into DSP session.</p>
+                    <p class="text-xs text-gray-600">Upload stems above to configure Young Guru EQ/Mud-Reduction chains.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Panel: Young Guru DSP Processing & Visualizers (5 Cols) -->
+        <section class="lg:col-span-5 flex flex-col gap-6">
+            
+            <!-- Real-Time Visualizer Engine -->
+            <div class="bg-studio-800 border border-studio-700 rounded-xl p-4 flex flex-col gap-3 shadow-xl">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-sm font-semibold tracking-wide flex items-center gap-2 text-cyan-400">
+                        <i data-lucide="activity" class="w-4 h-4"></i> MASTER SPECTRUM ANALYZER
+                    </h2>
+                    <span class="text-xs font-mono text-gray-400">FFT: 2048 | 60 FPS</span>
+                </div>
+                
+                <!-- Spectrum Canvas -->
+                <div class="relative w-full h-44 bg-studio-900 rounded-lg overflow-hidden border border-studio-700">
+                    <canvas id="spectrumCanvas" class="w-full h-full block"></canvas>
+                    <div class="absolute bottom-1 right-2 text-[10px] font-mono text-gray-500">20Hz - 20kHz</div>
+                    <!-- Target Mud Zone Overlay Marker -->
+                    <div class="absolute top-0 bottom-0 left-[18%] w-[12%] bg-red-500/10 border-x border-red-500/20 pointer-events-none flex items-center justify-center">
+                        <span class="text-[9px] font-mono text-red-400 rotate-90 opacity-70">200-400Hz MUD ZONE</span>
+                    </div>
+                </div>
+
+                <!-- Stereo Peak VU Meters -->
+                <div class="grid grid-cols-2 gap-3 bg-studio-900 p-3 rounded-lg border border-studio-700">
+                    <div>
+                        <div class="flex justify-between text-[11px] font-mono text-gray-400 mb-1">
+                            <span>LEFT CH</span>
+                            <span id="peakValueL">-inf dB</span>
+                        </div>
+                        <div class="w-full bg-studio-700 h-3 rounded-sm overflow-hidden flex">
+                            <div id="meterBarL" class="meter-bar bg-gradient-to-r from-cyan-500 via-gold-400 to-red-500 w-0 h-full"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-[11px] font-mono text-gray-400 mb-1">
+                            <span>RIGHT CH</span>
+                            <span id="peakValueR">-inf dB</span>
+                        </div>
+                        <div class="w-full bg-studio-700 h-3 rounded-sm overflow-hidden flex">
+                            <div id="meterBarR" class="meter-bar bg-gradient-to-r from-cyan-500 via-gold-400 to-red-500 w-0 h-full"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Master Chain & Young Guru DSP Controls -->
+            <div class="bg-studio-800 border border-studio-700 rounded-xl p-5 flex flex-col gap-5 shadow-xl flex-1">
+                <div class="flex items-center justify-between border-b border-studio-700 pb-3">
+                    <h2 class="text-sm font-semibold tracking-wide flex items-center gap-2 text-gold-400">
+                        <i data-lucide="disc" class="w-4 h-4"></i> MASTERING CHAIN (YOUNG GURU PRESET)
+                    </h2>
+                    <span class="px-2 py-0.5 bg-gold-500/10 text-gold-400 border border-gold-500/30 rounded text-[10px] font-mono">ACTIVE DSP</span>
+                </div>
+
+                <!-- DSP Controls Grid -->
+                <div class="space-y-4">
+                    <!-- Step 1: Stem De-Muddifier -->
+                    <div class="bg-studio-900/60 p-3.5 rounded-lg border border-studio-700">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="text-xs font-semibold text-gray-200 flex items-center gap-1.5">
+                                <i data-lucide="scissors" class="w-3.5 h-3.5 text-cyan-400"></i> Anti-Mud Notch Depth (250Hz)
+                            </label>
+                            <span id="mudCutVal" class="text-xs font-mono text-cyan-400">-3.5 dB</span>
+                        </div>
+                        <input type="range" id="mudCutSlider" min="-12" max="0" step="0.5" value="-3.5" class="w-full">
+                        <p class="text-[10px] text-gray-400 mt-1">Carves out 200-400Hz frequency boxiness for vocals & instrument clarity.</p>
+                    </div>
+
+                    <!-- Step 2: Parallel Bus Compression -->
+                    <div class="bg-studio-900/60 p-3.5 rounded-lg border border-studio-700">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="text-xs font-semibold text-gray-200 flex items-center gap-1.5">
+                                <i data-lucide="shrink" class="w-3.5 h-3.5 text-gold-400"></i> Bus Glue Compression Threshold
+                            </label>
+                            <span id="compThreshVal" class="text-xs font-mono text-gold-400">-12 dB</span>
+                        </div>
+                        <input type="range" id="compThreshSlider" min="-30" max="0" step="1" value="-12" class="w-full gold-thumb">
+                        <p class="text-[10px] text-gray-400 mt-1">Young Guru signature tight 2.5:1 dynamic bus compression.</p>
+                    </div>
+
+                    <!-- Step 3: Analog Saturation -->
+                    <div class="bg-studio-900/60 p-3.5 rounded-lg border border-studio-700">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="text-xs font-semibold text-gray-200 flex items-center gap-1.5">
+                                <i data-lucide="zap" class="w-3.5 h-3.5 text-orange-400"></i> Analog Soft-Clipping Saturation
+                            </label>
+                            <span id="satVal" class="text-xs font-mono text-orange-400">15 %</span>
+                        </div>
+                        <input type="range" id="satSlider" min="0" max="50" step="1" value="15" class="w-full gold-thumb">
+                        <p class="text-[10px] text-gray-400 mt-1">Adds warm odd/even harmonic warmth reminiscent of SSL analog consoles.</p>
+                    </div>
+
+                    <!-- Step 4: True Peak Limiter Ceiling -->
+                    <div class="bg-studio-900/60 p-3.5 rounded-lg border border-studio-700">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="text-xs font-semibold text-gray-200 flex items-center gap-1.5">
+                                <i data-lucide="shield" class="w-3.5 h-3.5 text-red-400"></i> Mastering Ceiling Limit
+                            </label>
+                            <span id="limiterCeilingVal" class="text-xs font-mono text-red-400">-0.3 dBFS</span>
+                        </div>
+                        <input type="range" id="limiterCeilingSlider" min="-3" max="0" step="0.1" value="-0.3" class="w-full">
+                        <p class="text-[10px] text-gray-400 mt-1">Transparent brickwall true peak limiter to maximize commercial loudness.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Global Notification/Status Bar -->
+    <footer class="bg-studio-800 border-t border-studio-700 px-6 py-2 text-xs font-mono text-gray-400 flex items-center justify-between">
+        <div id="statusMessage" class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> DSP Audio Engine Ready.
+        </div>
+        <div>
+            Web Audio API 32-Bit Floating Point Pipeline
+        </div>
+    </footer>
+
+    <!-- Main Web Audio DSP Engine Logic -->
+    <script>
+        // Global State & Web Audio Contexts
+        let audioCtx = null;
+        let stems = [];
+        let isPlaying = false;
+        let startTime = 0;
+        let pauseOffset = 0;
+        const MAX_STEMS = 100;
+
+        // Mastering Nodes Reference
+        let masterGainNode, masterEqNode, masterCompNode, masterSatNode, masterLimiterNode, analyserNode;
+        let spectrumAnimFrame = null;
+
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // DOM Elements
+        const fileInput = document.getElementById('fileInput');
+        const dropZone = document.getElementById('dropZone');
+        const stemListContainer = document.getElementById('stemListContainer');
+        const emptyState = document.getElementById('emptyState');
+        const stemCountBadge = document.getElementById('stemCountBadge');
+        const totalStemDisplay = document.getElementById('totalStemDisplay');
+        const clearStemsBtn = document.getElementById('clearStemsBtn');
+
+        const playBtn = document.getElementById('playBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const statusMessage = document.getElementById('statusMessage');
+
+        // DSP UI Sliders
+        const mudCutSlider = document.getElementById('mudCutSlider');
+        const mudCutVal = document.getElementById('mudCutVal');
+        const compThreshSlider = document.getElementById('compThreshSlider');
+        const compThreshVal = document.getElementById('compThreshVal');
+        const satSlider = document.getElementById('satSlider');
+        const satVal = document.getElementById('satVal');
+        const limiterCeilingSlider = document.getElementById('limiterCeilingSlider');
+        const limiterCeilingVal = document.getElementById('limiterCeilingVal');
+
+        // Canvas & Meters
+        const spectrumCanvas = document.getElementById('spectrumCanvas');
+        const canvasCtx = spectrumCanvas.getContext('2d');
+        const meterBarL = document.getElementById('meterBarL');
+        const meterBarR = document.getElementById('meterBarR');
+        const peakValueL = document.getElementById('peakValueL');
+        const peakValueR = document.getElementById('peakValueR');
+
+        // Resize Canvas dynamically
+        function resizeCanvas() {
+            spectrumCanvas.width = spectrumCanvas.clientWidth * window.devicePixelRatio;
+            spectrumCanvas.height = spectrumCanvas.clientHeight * window.devicePixelRatio;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Initialize Audio Context on User Gesture
+        function initAudioContext() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // Automatic Stem Categorization based on Filename
+        function detectCategory(filename) {
+            const name = filename.toLowerCase();
+            if (name.includes('vox') || name.includes('vocal') || name.includes('acapella') || name.includes('lead') || name.includes('back')) return 'vocal';
+            if (name.includes('drum') || name.includes('kick') || name.includes('snare') || name.includes('hihat') || name.includes('perc')) return 'drum';
+            if (name.includes('bass') || name.includes('sub') || name.includes('808')) return 'bass';
+            return 'instrument';
+        }
+
+        // Handle File Selection
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-cyan-400', 'bg-studio-800/80');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('border-cyan-400', 'bg-studio-800/80');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-cyan-400', 'bg-studio-800/80');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        async function handleFiles(fileList) {
+            initAudioContext();
+            const incomingFiles = Array.from(fileList).filter(f => f.type.startsWith('audio/') || f.name.match(/\.(wav|mp3|ogg|flac|aiff)$/i));
+            
+            if (stems.length + incomingFiles.length > MAX_STEMS) {
+                alert(`Stem capacity limit reached! Maximum allowed stems is ${MAX_STEMS}. Only the first eligible stems will be added.`);
+            }
+
+            const filesToProcess = incomingFiles.slice(0, MAX_STEMS - stems.length);
+
+            for (const file of filesToProcess) {
+                updateStatus(`Decoding stem: ${file.name}...`, 'warn');
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                    
+                    const stemObj = {
+                        id: Math.random().toString(36).substr(2, 9),
+                        name: file.name,
+                        category: detectCategory(file.name),
+                        buffer: audioBuffer,
+                        gain: 0.8,
+                        muted: false,
+                        soloed: false,
+                        sourceNode: null,
+                        gainNode: null,
+                        hpFilterNode: null,
+                        mudFilterNode: null,
+                        compNode: null
+                    };
+                    
+                    stems.push(stemObj);
+                } catch (err) {
+                    console.error('Audio decode error:', err);
+                }
+            }
+
+            updateUI();
+            updateStatus(`Successfully loaded ${stems.length} stems into DSP workspace.`, 'success');
+        }
+
+        function updateUI() {
+            totalStemDisplay.innerText = stems.length;
+            stemCountBadge.innerText = `Stems Loaded: ${stems.length} / ${MAX_STEMS}`;
+            
+            if (stems.length > 0) {
+                emptyState.classList.add('hidden');
+                playBtn.disabled = false;
+                exportBtn.disabled = false;
+            } else {
+                emptyState.classList.remove('hidden');
+                playBtn.disabled = true;
+                stopBtn.disabled = true;
+                exportBtn.disabled = true;
+            }
+
+            renderStemList();
+        }
+
+        function renderStemList() {
+            stemListContainer.innerHTML = '';
+            if (stems.length === 0) {
+                stemListContainer.appendChild(emptyState);
+                return;
+            }
+
+            stems.forEach((stem) => {
+                const card = document.createElement('div');
+                card.className = `bg-studio-800 border ${stem.muted ? 'border-red-900/40 opacity-60' : 'border-studio-700'} rounded-lg p-3 flex flex-col md:flex-row items-center justify-between gap-3 shadow-md transition`;
+                
+                let badgeColor = 'bg-purple-500/10 text-purple-400 border-purple-500/30';
+                if (stem.category === 'vocal') badgeColor = 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30';
+                if (stem.category === 'drum') badgeColor = 'bg-gold-500/10 text-gold-400 border-gold-500/30';
+                if (stem.category === 'bass') badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+
+                card.innerHTML = `
+                    <div class="flex items-center gap-3 w-full md:w-1/3 truncate">
+                        <div class="p-2 bg-studio-700 rounded text-gray-300">
+                            <i data-lucide="${stem.category === 'vocal' ? 'mic' : stem.category === 'drum' ? 'drum' : stem.category === 'bass' ? 'activity' : 'music'}" class="w-4 h-4"></i>
+                        </div>
+                        <div class="truncate">
+                            <h3 class="text-xs font-semibold text-gray-200 truncate" title="${stem.name}">${stem.name}</h3>
+                            <span class="inline-block text-[10px] font-mono border px-1.5 py-0.2 rounded mt-0.5 ${badgeColor}">${stem.category.toUpperCase()}</span>
+                        </div>
+                    </div>
+
+                    <!-- Controls -->
+                    <div class="flex items-center gap-4 w-full md:w-2/3 justify-end">
+                        <!-- Volume Slider -->
+                        <div class="flex items-center gap-2 flex-1 max-w-[200px]">
+                            <i data-lucide="volume-2" class="w-3.5 h-3.5 text-gray-400"></i>
+                            <input type="range" min="0" max="1.2" step="0.01" value="${stem.gain}" class="w-full stem-gain" data-id="${stem.id}">
+                        </div>
+
+                        <!-- Mute / Solo Buttons -->
+                        <div class="flex items-center gap-1">
+                            <button class="stem-mute px-2.5 py-1 rounded text-xs font-mono border ${stem.muted ? 'bg-red-600 text-white border-red-500' : 'bg-studio-700 text-gray-300 border-studio-600 hover:bg-studio-600'}" data-id="${stem.id}">M</button>
+                            <button class="stem-solo px-2.5 py-1 rounded text-xs font-mono border ${stem.soloed ? 'bg-gold-500 text-black border-gold-400 font-bold' : 'bg-studio-700 text-gray-300 border-studio-600 hover:bg-studio-600'}" data-id="${stem.id}">S</button>
+                        </div>
+
+                        <!-- Remove Stem -->
+                        <button class="stem-delete text-gray-500 hover:text-red-400 p-1 transition" data-id="${stem.id}">
+                            <i data-lucide="x-circle" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                `;
+
+                stemListContainer.appendChild(card);
+            });
+
+            lucide.createIcons();
+            attachStemEventListeners();
+        }
+
+        function attachStemEventListeners() {
+            document.querySelectorAll('.stem-gain').forEach(slider => {
+                slider.addEventListener('input', (e) => {
+                    const id = e.target.getAttribute('data-id');
+                    const stem = stems.find(s => s.id === id);
+                    if (stem) {
+                        stem.gain = parseFloat(e.target.value);
+                        if (stem.gainNode) {
+                            stem.gainNode.gain.setValueAtTime(stem.gain, audioCtx.currentTime);
+                        }
+                    }
+                });
+            });
+
+            document.querySelectorAll('.stem-mute').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.target.getAttribute('data-id');
+                    const stem = stems.find(s => s.id === id);
+                    if (stem) {
+                        stem.muted = !stem.muted;
+                        applyMuteSoloLogic();
+                        updateUI();
+                    }
+                });
+            });
+
+            document.querySelectorAll('.stem-solo').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.target.getAttribute('data-id');
+                    const stem = stems.find(s => s.id === id);
+                    if (stem) {
+                        stem.soloed = !stem.soloed;
+                        applyMuteSoloLogic();
+                        updateUI();
+                    }
+                });
+            });
+
+            document.querySelectorAll('.stem-delete').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const id = e.target.closest('button').getAttribute('data-id');
+                    stems = stems.filter(s => s.id !== id);
+                    if (isPlaying) stopPlayback();
+                    updateUI();
+                });
+            });
+        }
+
+        function applyMuteSoloLogic() {
+            const anySoloed = stems.some(s => s.soloed);
+            stems.forEach(stem => {
+                let effectiveGain = stem.gain;
+                if (stem.muted) {
+                    effectiveGain = 0;
+                } else if (anySoloed && !stem.soloed) {
+                    effectiveGain = 0;
+                }
+
+                if (stem.gainNode && audioCtx) {
+                    stem.gainNode.gain.setValueAtTime(effectiveGain, audioCtx.currentTime);
+                }
+            });
+        }
+
+        clearStemsBtn.addEventListener('click', () => {
+            if (isPlaying) stopPlayback();
+            stems = [];
+            updateUI();
+            updateStatus('All stems cleared.', 'info');
+        });
+
+        // -------------------------------------------------------------
+        // DSP AUDIO GRAPH SETUP (YOUNG GURU MASTERING CHAIN)
+        // -------------------------------------------------------------
+        function setupMasteringChain(ctx) {
+            // 1. Anti-Mud Master Notch Filter
+            masterEqNode = ctx.createBiquadFilter();
+            masterEqNode.type = 'peaking';
+            masterEqNode.frequency.value = 250; // Young Guru boxiness reduction frequency
+            masterEqNode.Q.value = 1.5;
+            masterEqNode.gain.value = parseFloat(mudCutSlider.value);
+
+            // 2. Young Guru Glue Bus Compressor
+            masterCompNode = ctx.createDynamicsCompressor();
+            masterCompNode.threshold.value = parseFloat(compThreshSlider.value);
+            masterCompNode.knee.value = 6;
+            masterCompNode.ratio.value = 2.5; // Smooth parallel bus ratio
+            masterCompNode.attack.value = 0.015; // 15ms punch preservation
+            masterCompNode.release.value = 0.1; // Fast transparency
+
+            // 3. Soft-Clipping Saturation Curve (SSL Console Harmonic Simulation)
+            masterSatNode = ctx.createWaveShaper();
+            updateSaturationCurve(parseFloat(satSlider.value));
+
+            // 4. True Peak Brickwall Limiter
+            masterLimiterNode = ctx.createDynamicsCompressor();
+            masterLimiterNode.threshold.value = parseFloat(limiterCeilingSlider.value);
+            masterLimiterNode.knee.value = 0;
+            masterLimiterNode.ratio.value = 20; // Hard limiting
+            masterLimiterNode.attack.value = 0.001; // Instant 1ms attack
+            masterLimiterNode.release.value = 0.05;
+
+            // 5. Final Output Master Gain & FFT Analyser
+            masterGainNode = ctx.createGain();
+            analyserNode = ctx.createAnalyser();
+            analyserNode.fftSize = 2048;
+            analyserNode.smoothingTimeConstant = 0.8;
+
+            // Connect Chain: EQ -> Comp -> Sat -> Limiter -> MasterGain -> Analyser -> Output
+            masterEqNode.connect(masterCompNode);
+            masterCompNode.connect(masterSatNode);
+            masterSatNode.connect(masterLimiterNode);
+            masterLimiterNode.connect(masterGainNode);
+            masterGainNode.connect(analyserNode);
+
+            return {
+                input: masterEqNode,
+                output: analyserNode
+            };
+        }
+
+        // Soft-Clipping Saturation Curve Generation
+        function updateSaturationCurve(amount) {
+            if (!masterSatNode) return;
+            const k = amount;
+            const n_samples = 44100;
+            const curve = new Float32Array(n_samples);
+            const deg = Math.PI / 180;
+            for (let i = 0; i < n_samples; ++i) {
+                let x = (i * 2) / n_samples - 1;
+                if (k === 0) {
+                    curve[i] = x;
+                } else {
+                    curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
+                }
+            }
+            masterSatNode.curve = curve;
+            masterSatNode.oversample = '4x';
+        }
+
+        // -------------------------------------------------------------
+        // REAL-TIME PLAYBACK ENGINE
+        // -------------------------------------------------------------
+        playBtn.addEventListener('click', () => {
+            if (isPlaying) {
+                pausePlayback();
+            } else {
+                startPlayback();
+            }
+        });
+
+        stopBtn.addEventListener('click', () => {
+            stopPlayback();
+        });
+
+        function startPlayback() {
+            if (stems.length === 0) return;
+            initAudioContext();
+
+            // Build Master Processing Chain
+            const masterChain = setupMasteringChain(audioCtx);
+            analyserNode.connect(audioCtx.destination);
+
+            const anySoloed = stems.some(s => s.soloed);
+            startTime = audioCtx.currentTime - pauseOffset;
+
+            stems.forEach(stem => {
+                // STEM-LEVEL YOUNG GURU DSP CHAIN
+                const sourceNode = audioCtx.createBufferSource();
+                sourceNode.buffer = stem.buffer;
+
+                // High Pass Filter (Clear sub-rumble based on track type)
+                const hpFilter = audioCtx.createBiquadFilter();
+                hpFilter.type = 'highpass';
+                if (stem.category === 'vocal') hpFilter.frequency.value = 80;
+                else if (stem.category === 'drum') hpFilter.frequency.value = 30;
+                else hpFilter.frequency.value = 100;
+
+                // Dedicated Stem Mud Cut
+                const mudFilter = audioCtx.createBiquadFilter();
+                mudFilter.type = 'peaking';
+                mudFilter.frequency.value = stem.category === 'vocal' ? 250 : 350;
+                mudFilter.gain.value = -4.0; // Surgical mud cut
+                mudFilter.Q.value = 2.0;
+
+                // Stem Compression
+                const compNode = audioCtx.createDynamicsCompressor();
+                compNode.threshold.value = stem.category === 'vocal' ? -18 : -14;
+                compNode.ratio.value = stem.category === 'vocal' ? 3.0 : 2.5;
+
+                // Stem Gain Node
+                const gainNode = audioCtx.createGain();
+                let effectiveGain = stem.gain;
+                if (stem.muted || (anySoloed && !stem.soloed)) effectiveGain = 0;
+                gainNode.gain.setValueAtTime(effectiveGain, audioCtx.currentTime);
+
+                // Connect Stem Audio Graph
+                sourceNode.connect(hpFilter);
+                hpFilter.connect(mudFilter);
+                mudFilter.connect(compNode);
+                compNode.connect(gainNode);
+                gainNode.connect(masterChain.input);
+
+                sourceNode.start(0, pauseOffset % stem.buffer.duration);
+
+                stem.sourceNode = sourceNode;
+                stem.gainNode = gainNode;
+                stem.hpFilterNode = hpFilter;
+                stem.mudFilterNode = mudFilter;
+                stem.compNode = compNode;
+            });
+
+            isPlaying = true;
+            playBtn.innerHTML = `<i data-lucide="pause" class="w-4 h-4 fill-current"></i> Pause Preview`;
+            stopBtn.disabled = false;
+            lucide.createIcons();
+            updateStatus('Playing live processed mix...', 'success');
+
+            drawVisualizers();
+        }
+
+        function pausePlayback() {
+            if (!isPlaying) return;
+            pauseOffset = audioCtx.currentTime - startTime;
+            stopStemNodes();
+            isPlaying = false;
+            playBtn.innerHTML = `<i data-lucide="play" class="w-4 h-4 fill-current"></i> Resume Preview`;
+            lucide.createIcons();
+            cancelAnimationFrame(spectrumAnimFrame);
+            updateStatus('Playback paused.', 'info');
+        }
+
+        function stopPlayback() {
+            pauseOffset = 0;
+            stopStemNodes();
+            isPlaying = false;
+            playBtn.innerHTML = `<i data-lucide="play" class="w-4 h-4 fill-current"></i> Preview Mix`;
+            stopBtn.disabled = true;
+            lucide.createIcons();
+            cancelAnimationFrame(spectrumAnimFrame);
+            resetMeters();
+            updateStatus('Playback stopped.', 'info');
+        }
+
+        function stopStemNodes() {
+            stems.forEach(stem => {
+                if (stem.sourceNode) {
+                    try { stem.sourceNode.stop(); } catch (e) {}
+                    stem.sourceNode.disconnect();
+                    stem.sourceNode = null;
+                }
+            });
+        }
+
+        // -------------------------------------------------------------
+        // VISUALIZERS: SPECTRUM ANALYZER & VU METERS
+        // -------------------------------------------------------------
+        function drawVisualizers() {
+            if (!isPlaying || !analyserNode) return;
+
+            const bufferLength = analyserNode.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyserNode.getByteFrequencyData(dataArray);
+
+            // Canvas Dimensions
+            const width = spectrumCanvas.width;
+            const height = spectrumCanvas.height;
+
+            canvasCtx.fillStyle = '#0a0d12';
+            canvasCtx.fillRect(0, 0, width, height);
+
+            // Render Spectrum Bars
+            const barWidth = (width / bufferLength) * 2.5;
+            let barHeight;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                barHeight = (dataArray[i] / 255) * height;
+
+                // Color Gradient based on Frequency & Intensity
+                const hue = (i / bufferLength) * 200 + 180; // Cyan to Gold spectrum
+                canvasCtx.fillStyle = `hsla(${hue}, 80%, 50%, 0.85)`;
+                canvasCtx.fillRect(x, height - barHeight, barWidth, barHeight);
+
+                x += barWidth + 1;
+            }
+
+            // Calculate Peak Volume for Stereo VU Meters
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i];
+            }
+            const average = sum / dataArray.length;
+            const peakDb = Math.max(-60, Math.round((average / 255) * 60 - 60));
+
+            const percent = Math.min(100, Math.max(0, (average / 200) * 100));
+            meterBarL.style.width = `${percent}%`;
+            meterBarR.style.width = `${percent * 0.95}%`; // Slight offset for stereo simulation
+
+            peakValueL.innerText = peakDb > -60 ? `${peakDb} dB` : '-inf dB';
+            peakValueR.innerText = peakDb > -60 ? `${peakDb - 1} dB` : '-inf dB';
+
+            spectrumAnimFrame = requestAnimationFrame(drawVisualizers);
+        }
+
+        function resetMeters() {
+            canvasCtx.fillStyle = '#0a0d12';
+            canvasCtx.fillRect(0, 0, spectrumCanvas.width, spectrumCanvas.height);
+            meterBarL.style.width = '0%';
+            meterBarR.style.width = '0%';
+            peakValueL.innerText = '-inf dB';
+            peakValueR.innerText = '-inf dB';
+        }
+
+        // -------------------------------------------------------------
+        // DSP CONTROL SLIDER LISTENERS
+        // -------------------------------------------------------------
+        mudCutSlider.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            mudCutVal.innerText = `${val} dB`;
+            if (masterEqNode) masterEqNode.gain.setValueAtTime(val, audioCtx.currentTime);
+        });
+
+        compThreshSlider.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            compThreshVal.innerText = `${val} dB`;
+            if (masterCompNode) masterCompNode.threshold.setValueAtTime(val, audioCtx.currentTime);
+        });
+
+        satSlider.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            satVal.innerText = `${val} %`;
+            updateSaturationCurve(val);
+        });
+
+        limiterCeilingSlider.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            limiterCeilingVal.innerText = `${val} dBFS`;
+            if (masterLimiterNode) masterLimiterNode.threshold.setValueAtTime(val, audioCtx.currentTime);
+        });
+
+        // -------------------------------------------------------------
+        // EXPORT MASTERED AUDIO TO WAV ENGINE (OFFLINE AUDIO CONTEXT)
+        // -------------------------------------------------------------
+        exportBtn.addEventListener('click', async () => {
+            if (stems.length === 0) return;
+            
+            if (isPlaying) stopPlayback();
+            updateStatus('Rendering offline Young Guru DSP master WAV file...', 'warn');
+
+            // Find maximum stem duration
+            const maxDuration = Math.max(...stems.map(s => s.buffer.duration));
+            const sampleRate = 44100;
+            const offlineCtx = new OfflineAudioContext(2, maxDuration * sampleRate, sampleRate);
+
+            // Build Mastering Graph in Offline Context
+            const masterEq = offlineCtx.createBiquadFilter();
+            masterEq.type = 'peaking';
+            masterEq.frequency.value = 250;
+            masterEq.gain.value = parseFloat(mudCutSlider.value);
+
+            const masterComp = offlineCtx.createDynamicsCompressor();
+            masterComp.threshold.value = parseFloat(compThreshSlider.value);
+            masterComp.ratio.value = 2.5;
+
+            const masterSat = offlineCtx.createWaveShaper();
+            const satAmount = parseFloat(satSlider.value);
+            const k = satAmount;
+            const n_samples = 44100;
+            const curve = new Float32Array(n_samples);
+            const deg = Math.PI / 180;
+            for (let i = 0; i < n_samples; ++i) {
+                let x = (i * 2) / n_samples - 1;
+                curve[i] = satAmount === 0 ? x : ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
+            }
+            masterSat.curve = curve;
+
+            const masterLimiter = offlineCtx.createDynamicsCompressor();
+            masterLimiter.threshold.value = parseFloat(limiterCeilingSlider.value);
+            masterLimiter.ratio.value = 20;
+
+            masterEq.connect(masterComp);
+            masterComp.connect(masterSat);
+            masterSat.connect(masterLimiter);
+            masterLimiter.connect(offlineCtx.destination);
+
+            // Connect stems into offline graph
+            const anySoloed = stems.some(s => s.soloed);
+            stems.forEach(stem => {
+                let gainVal = stem.gain;
+                if (stem.muted || (anySoloed && !stem.soloed)) gainVal = 0;
+
+                if (gainVal > 0) {
+                    const src = offlineCtx.createBufferSource();
+                    src.buffer = stem.buffer;
+
+                    const hp = offlineCtx.createBiquadFilter();
+                    hp.type = 'highpass';
+                    hp.frequency.value = stem.category === 'vocal' ? 80 : 35;
+
+                    const mud = offlineCtx.createBiquadFilter();
+                    mud.type = 'peaking';
+                    mud.frequency.value = 300;
+                    mud.gain.value = -3.5;
+
+                    const g = offlineCtx.createGain();
+                    g.gain.value = gainVal;
+
+                    src.connect(hp);
+                    hp.connect(mud);
+                    mud.connect(g);
+                    g.connect(masterEq);
+
+                    src.start(0);
+                }
+            });
+
+            try {
+                const renderedBuffer = await offlineCtx.startRendering();
+                const wavBlob = bufferToWave(renderedBuffer, renderedBuffer.length);
+                
+                // Trigger Download
+                const url = URL.createObjectURL(wavBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `GuruMix_Master_${Date.now()}.wav`;
+                a.click();
+
+                updateStatus('Master WAV file successfully exported!', 'success');
+            } catch (err) {
+                console.error('Mastering render error:', err);
+                updateStatus('Failed to render mastered WAV file.', 'error');
+            }
+        });
+
+        // Convert AudioBuffer to standard 16-Bit PCM WAV Format
+        function bufferToWave(abuffer, len) {
+            let numOfChan = abuffer.numberOfChannels,
+                length = len * numOfChan * 2 + 44,
+                buffer = new ArrayBuffer(length),
+                view = new DataView(buffer),
+                channels = [],
+                i, sample,
+                offset = 0,
+                pos = 0;
+
+            function setUint16(data) {
+                view.setUint16(pos, data, true);
+                pos += 2;
+            }
+
+            function setUint32(data) {
+                view.setUint32(pos, data, true);
+                pos += 4;
+            }
+
+            // RIFF Header
+            setUint32(0x46464952); // "RIFF"
+            setUint32(length - 8);
+            setUint32(0x45564157); // "WAVE"
+            setUint32(0x20746d66); // "fmt " chunk
+            setUint32(16); // length = 16
+            setUint16(1); // PCM (uncompressed)
+            setUint16(numOfChan);
+            setUint32(abuffer.sampleRate);
+            setUint32(abuffer.sampleRate * 2 * numOfChan); // avg. bytes/sec
+            setUint16(numOfChan * 2); // block-align
+            setUint16(16); // 16-bit
+            setUint32(0x61746164); // "data" chunk
+            setUint32(length - pos - 4);
+
+            for (i = 0; i < abuffer.numberOfChannels; i++) channels.push(abuffer.getChannelData(i));
+
+            while (offset < len) {
+                for (i = 0; i < numOfChan; i++) {
+                    sample = Math.max(-1, Math.min(1, channels[i][offset]));
+                    sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0;
+                    view.setInt16(pos, sample, true);
+                    pos += 2;
+                }
+                offset++;
+            }
+
+            return new Blob([buffer], { type: "audio/wav" });
+        }
+
+        // Status Bar Updates
+        function updateStatus(msg, type = 'info') {
+            let badge = 'bg-emerald-500';
+            if (type === 'warn') badge = 'bg-gold-500';
+            if (type === 'error') badge = 'bg-red-500';
+            statusMessage.innerHTML = `<span class="w-2 h-2 rounded-full ${badge} animate-pulse"></span> ${msg}`;
+        }
+    </script>
+</body>
+</html>
